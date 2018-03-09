@@ -12,11 +12,7 @@ A small real time chat with rooms build with Node/Express using Redis.
 
 Run node server with `yarn start` and follow instructions (server run on [http://localhost:3000](http://localhost:3000))
 
-``
-yarn start
-``
-
-Décommenter sur app.js (ou bien créer sur redis) 
+Uncomment on app.js or create it on redis 
 
  ``
  client.sadd("rooms", "informatique");
