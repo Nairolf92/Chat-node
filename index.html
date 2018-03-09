@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+    <title>Socket.IO chat</title>
+    <style>
+        .container-fluid {
+            margin-bottom: 70px;
+        }
+
+        #alert-status {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: auto;
+        }
+
+        #message-form {
+            position: fixed;
+            width: 95%;
+            bottom: 2%;
+            left: 2.5%;
+            right: 2.5%;
+        }
+
+        #message-form .form-group {
+            width: 100%;
+        }
+
+        #message-form button {
+            position: absolute;
+            right: 0;
+            top: 0;
+            z-index: 100;
+            min-width: 15%
+        }
+
+        .bold {
+            font-weight: bold
+        }
+    </style>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.4/css/bootstrap.min.css"
+          integrity="sha384-2hfp1SzUoho7/TsGGGDaFdsuuDL0LX2hnUp6VkX3CUQ2K4K+xjboZdsXyp4oUHZj" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+          crossorigin="anonymous">
+</head>
+<body>
+<div class="container-fluid">
+    <div id="alert-status" class="alert alert-warning" role="alert">Loading...</div>
+    <div class="col-md-3">
+        <div class="row" id="rooms">
+            <h2>Rooms</h2>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="row">
+            <h2>Messages</h2>
+            <div id="messages"></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="row">
+            <h2>Users
+                <small id="current-user"></small>
+            </h2>
+            <ul id="users"></ul>
+        </div>
+    </div>
+    <form id="message-form" class="form-inline" action="">
+        <div class="form-group">
+            <label class="sr-only" for="message">Message</label>
+            <div class="input-group">
+                <div class="input-group-addon">
+                    <i class="fa fa-2x fa-comments-o" aria-hidden="true"></i>
+                </div>
+                <input type="text" class="form-control form-control-lg" id="message" placeholder="Your message here..."
+                       autocomplete="off" autofocus>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-lg btn-primary">Send</button>
+    </form>
+</div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        <script>
+        (function ($) {
+            var socket = io();
+            var username;
+            var users = $('#users');
+            var messageForm = $('#message-form');
+            var messageInput = $('#message');
+            var messages = $('#messages');
+            var alertStatus = $('#alert-status');
+            var rooms = $('#rooms');
+            var isRoomSelected;
+            var roomSelected;
+
+            function updateStatus(text, status) {
+                alertStatus.removeClass('alert-danger alert-warning alert-success').addClass('alert-' + status).html(text);
+            }
+
+            socket.on('connect', (data) => {
+                updateStatus('Connected', 'success');
+                if (typeof(Storage) !== undefined) {
+                    username = localStorage.getItem('username');
+                    console.log(`Username from localStorage is ${username}`)
+                }
+                while (username === undefined || username === null || username === '') {
+                    username = prompt('What is your username?');
+                    if (typeof(Storage) !== undefined) {
+                        localStorage.setItem('username', username);
+                    }
+                }
+                if($('#rooms div').empty()) {
+                    socket.emit('chat.loadRooms');
+                }
+            });
+
+            socket.on('chat.loadRooms', (data) => {
+                // clean all html
+                users.children().remove();
+                messages.children().remove();
+                rooms.append(`<div style="padding-top:1px;"><button id="${data}" type="button" class="btn basic">${data}</button></div>`);
+                $( "#"+data ).click(function() {
+                    if(isRoomSelected && roomSelected!==data) {
+                        socket.emit('chat.leave');
+                    }
+                    $('#rooms div button').removeClass('btn-success').prop("disabled", false);
+                    users.children().remove();
+                    messages.children().remove();
+                    $('#'+data).removeClass('basic').addClass('btn-success').prop("disabled",true);
+                    roomSelected = data;
+                    isRoomSelected = true;
+                    socket.emit('chat.join', JSON.stringify({'username' : username, 'room' : data}));
+                });
+            });
+
+            socket.on('chat.join', (username) => {
+                console.log('chat.join : '+username);
+                users.append(`<li>${username}</li>`);
+            });
+
+            socket.on('chat.leave', (username) => {
+                console.log('chat.leave : '+username);
+                $(`#users > li:contains(${username})`).remove();
+            });
+
+            socket.on('chat.message', (json) => {
+                // console.log('chat.message => ', json);
+                const data = JSON.parse(json),
+                    currentUsername = username === data.username ? 'me' : data.username,
+                    className = username === data.username ? 'text-success' : '';
+                messages.prepend($(`
+                <p data-username="${data.username}">
+                    <span class="bold ${className}">${currentUsername}: </span> ${data.message}
+                </p>
+            `));
+            });
+
+            messageForm.on('submit', () => {
+                socket.emit('chat.message', messageInput.val());
+                messageInput.val('');
+                return false;
+            });
+
+            socket.on('disconnect', () => {
+                updateStatus('Connection lost, trying to reconnect...', 'danger');
+            });
+
+        })(jQuery);
+    </script>
+</body>
+</html>
